@@ -35,12 +35,25 @@ This project provides a practical example of an online multiplayer menu system i
 3. **Configure Subsystems**
    - Example `DefaultEngine.ini` setup for Steam:
      ```ini
-     [OnlineSubsystem]
-     DefaultPlatformService=Steam
-
-     [OnlineSubsystemSteam]
-     bEnabled=true
-     SteamDevAppId=480
+      [/Script/Engine.GameEngine]
+      +NetDriverDefinitions=(DefName="GameNetDriver",DriverClassName="OnlineSubsystemSteam.SteamNetDriver",DriverClassNameFallback="OnlineSubsystemUtils.IpNetDriver")
+      
+      [OnlineSubsystem]
+      DefaultPlatformService=Steam
+      
+      [OnlineSubsystemSteam]
+      bEnabled=true
+      SteamDevAppId=480
+      
+      bInitServerOnClient=true
+      
+      [/Script/OnlineSubsystemSteam.SteamNetDriver]
+      NetConnectionClassName="OnlineSubsystemSteam.SteamNetConnection"
+     ```
+   - Example `DefaultGame.ini` setup for Steam:
+     ```ini
+      [/Script/Engine.GameSession]
+      MaxPlayers=100
      ```
 4. **Subsystem Recognition**  
    The plugin automatically checks the online subsystem name:
