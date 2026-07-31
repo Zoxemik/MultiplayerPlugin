@@ -3,7 +3,7 @@
 A compact Unreal Engine 5 C++ plugin for creating, discovering, joining, updating, starting, ending, and destroying multiplayer sessions through Unreal's classic Online Subsystem. It includes a Blueprint-ready session browser, direct-IP travel, Steam lobby sessions, LAN sessions through the NULL subsystem, build compatibility checks, friend invites, operation timeouts, and travel recovery.
 
 <p align="center">
-  <img src="images/MenuWidgetExample.PNG" alt="Multiplayer Sessions menu" width="600"/>
+  <img src="images/MenuWidgetMenu.PNG" alt="Multiplayer Sessions menu" width="600"/>
 </p>
 
 ## Overview
