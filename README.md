@@ -1,113 +1,105 @@
 # Multiplayer Sessions Plugin
 
-This project provides a practical example of an online multiplayer menu system in Unreal Engine. It uses a custom `UMultiplayerSessionsSubsystem` to integrate with Unreal’s Online Subsystem (such as Steam) or a LAN-based connection. The plugin detects which subsystem is active—if it’s `"NULL"`, it enables LAN mode. Otherwise, it uses the configured online service (e.g., Steam).
+A compact Unreal Engine 5 C++ plugin for creating, discovering, joining, updating, starting, ending, and destroying multiplayer sessions through Unreal's classic Online Subsystem. It includes a Blueprint-ready session browser, direct-IP travel, Steam lobby sessions, LAN sessions through the NULL subsystem, build compatibility checks, friend invites, operation timeouts, and travel recovery.
 
 <p align="center">
-  <img src="images/MenuWidgetExample.PNG" alt="Menu Screenshot" width="600"/>
+  <img src="images/MenuWidgetExample.PNG" alt="Multiplayer Sessions menu" width="600"/>
 </p>
 
 ## Overview
 
-- **MenuWidget**: A `UUserWidget` that provides UI controls (Host, Join, LAN, etc.) and communicates with the subsystem to create, find, or join sessions.
-- **MultiplayerSessionsSubsystem**: A `UGameInstanceSubsystem` that handles session functionality—creating, finding, joining, destroying, and starting sessions. It also demonstrates how to handle invites and read a friend list from an online service.
+* **MultiplayerSessionsSubsystem**: A `UGameInstanceSubsystem` that owns the complete asynchronous session flow and exposes C++ and Blueprint delegates.
+* **MultiplayerEntryWidget**: A sample `UUserWidget` for hosting, refreshing, joining selected sessions, LAN mode, and direct-IP connections.
+* **Session Browser Widgets**: List item and row classes for displaying session name, host, status, player count, ping, map, and join availability.
 
 ## Features
 
-- **Session Creation and Management**: Easily host, find, join, destroy, and start sessions.
-- **Subsystem Detection**: Automatically switches between LAN (NULL) and Online Subsystems (e.g., Steam).
-- **Custom Match Types**: Tag sessions with match types (like "FreeForAll") for better filtering and joining.
-- **UI Integration**: A sample MenuWidget demonstrates session setup, navigation, and input handling.
-- **Invite Support (WIP)**: Early integration of session invites by nickname (requires implementation).
+* Create, find, join, leave, update, start, end, and destroy sessions.
+* Steam lobby and NULL LAN session settings.
+* Search filtering, sorting, cached browser entries, and join-block reasons.
+* Automatic local build ID and custom session schema compatibility checks.
+* Direct friend invites, platform invite UI, accepted-invite handling, and friend-session joining.
+* Direct-IP client travel.
+* Busy-state protection, operation timeouts, network/travel failure handling, and recovery cleanup.
 
 ## Installation
 
-1. **Plugin Integration**
-   - Copy the `MultiplayerSessions` folder to your Unreal Project's `Plugins` directory:
-     ```
-     YourProject/Plugins/MultiplayerSessions
-     ```
+1. Copy the `MultiplayerSessions` folder into your project's plugin directory:
 
-2. **Enable the Plugin**
-   - Launch your Unreal Project and go to **Edit > Plugins**.
-   - Locate and enable `MultiplayerSessions`.
-   - Restart the engine for changes to take effect.
+   ```text
+   YourProject/Plugins/MultiplayerSessions
+   ```
 
-3. **Configure Subsystems**
-   - Example `DefaultEngine.ini` setup for Steam:
-     ```ini
-      [/Script/Engine.GameEngine]
-      +NetDriverDefinitions=(DefName="GameNetDriver",DriverClassName="OnlineSubsystemSteam.SteamNetDriver",DriverClassNameFallback="OnlineSubsystemUtils.IpNetDriver")
-      
-      [OnlineSubsystem]
-      DefaultPlatformService=Steam
-      
-      [OnlineSubsystemSteam]
-      bEnabled=true
-      SteamDevAppId=480
-      
-      bInitServerOnClient=true
-      
-      [/Script/OnlineSubsystemSteam.SteamNetDriver]
-      NetConnectionClassName="OnlineSubsystemSteam.SteamNetConnection"
-     ```
-   - Example `DefaultGame.ini` setup for Steam:
-     ```ini
-      [/Script/Engine.GameSession]
-      MaxPlayers=100
-     ```
-4. **Subsystem Recognition**  
-   The plugin automatically checks the online subsystem name:
-   - If `SubsystemName == "NULL"`, the plugin treats sessions as LAN sessions.
-   - Otherwise, it proceeds with the configured service (Steam, EOS, etc.).
-     
+2. Enable `MultiplayerSessions` and the online provider used by your project, then restart the editor.
+
+3. Configure one default Online Subsystem.
+
+   **NULL for LAN:**
+
+   ```ini
+   [OnlineSubsystem]
+   DefaultPlatformService=NULL
+   ```
+
+   **Steam:**
+
+   ```ini
+   [/Script/Engine.GameEngine]
+   +NetDriverDefinitions=(DefName="GameNetDriver",DriverClassName="OnlineSubsystemSteam.SteamNetDriver",DriverClassNameFallback="OnlineSubsystemUtils.IpNetDriver")
+
+   [OnlineSubsystem]
+   DefaultPlatformService=Steam
+
+   [OnlineSubsystemSteam]
+   bEnabled=true
+   SteamDevAppId=480
+
+   [/Script/OnlineSubsystemSteam.SteamNetDriver]
+   NetConnectionClassName="OnlineSubsystemSteam.SteamNetConnection"
+   ```
+
+   `SteamDevAppId=480` is intended for development testing. Use your own Steam App ID before release.
+
 ## Usage
 
-**Menu Widget Setup**  
-   In your main map or level blueprint, instantiate and add the `MenuWidget` to the viewport. Use its exposed `MenuSetup` function to initialize the session parameters.
-   
+Create a Widget Blueprint derived from `UMultiplayerEntryWidget`, add it to the viewport, and initialize it before using the menu:
+
 <p align="center">
   <img src="images/MenuWidgetBlueprint.PNG" alt="Multiplayer Menu UI" width="700"/>
 </p>
 
-### Menu Setup
+The lobby is opened as a listen server after successful session creation. Session searches return `FMultiplayerSessionBrowserEntry` values that can be joined by entry ID or cached result index.
 
-Use the `UMenuWidget` to handle UI for creating and joining sessions. Example setup in Blueprint:
+### Invites and Friend Sessions
 
-```cpp
-MenuWidget->MenuSetup(4, TEXT("FreeForAll"), TEXT("/Game/Levels/LobbyLevel"));
-```
-
-### Invite Friend by Nickname (⚠️ Not Yet Fully Implemented)
-
-This method demonstrates the concept but requires adaptation to your game's friend system:
+Invites are available only for non-LAN sessions and depend on support from the active online provider:
 
 ```cpp
-void UMultiplayerSessionsSubsystem::InviteFriendByNickname(const FString& FriendNickname)
-{
-    if (!SessionInterface.IsValid())
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Session Interface not valid"));
-        return;
-    }
-
-    TSharedRef<const FUniqueNetId>* FoundId = FriendNameToIdMap.Find(FriendNickname.ToLower());
-    if (!FoundId)
-    {
-        GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Friend nickname not found!"));
-        return;
-    }
-
-    SessionInterface->SendSessionInviteToFriend(0, NAME_GameSession, **FoundId);
-}
+MultiplayerSessionsSubsystem->ShowPlatformInviteUI();
+MultiplayerSessionsSubsystem->SendSessionInviteToFriend(FriendId);
+MultiplayerSessionsSubsystem->JoinFriendSession(FriendId);
 ```
-The above method attempts to look up a friend’s unique online ID by nickname, then sends an invite through the session interface. Depending on your project’s needs, you may have to customize how friend nicknames are retrieved, stored, or validated.
-> ⚠️ **Note**: This function depends on correct nickname mapping and a valid friend list. You must customize this logic based on your actual friend system.
+
+The plugin also listens for accepted session invitations and starts the normal join flow from the received search result. A valid platform user and friend `FUniqueNetIdRepl` are required.
+
+### Direct IP
+
+```cpp
+MultiplayerSessionsSubsystem->JoinByAddress(TEXT("127.0.0.1:7777"));
+```
+
+Pass a valid Unreal travel address and ensure that the host, net driver, firewall, and port forwarding are configured correctly.
 
 ## Compatibility
 
-- Tested with **Unreal Engine 5.4+**
-- Compatible with Steam and NULL (LAN) Online Subsystems
+* Uses Unreal Engine 5 classic Online Subsystem APIs.
+* Designed for Steam listen-server lobbies and NULL LAN sessions.
+* LAN mode requires an active NULL Online Subsystem; it is not a replacement for a missing subsystem.
+* Provider-specific invites, friends, presence, and external UI require testing with real accounts.
+* Other online providers and dedicated-server deployments require project-specific validation.
+
+Publish only the Unreal Engine versions and platforms that you have compiled, packaged, and tested.
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the MIT License. See `LICENSE` for details.
